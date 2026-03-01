@@ -1,4 +1,4 @@
-# MaaS: Monte Carlo as a Service (Mini-Aladdin)
+# MaaS: Monte Carlo as a Service
 
 MaaS is an institutional-grade quantitative portfolio analytics and risk management platform. Built as a lightweight alternative to enterprise systems like BlackRock's Aladdin, MaaS combines modern portfolio theory, strictly rigorous risk engines, and AI-driven structural views into a single, high-performance web terminal.
 

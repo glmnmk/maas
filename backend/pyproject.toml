@@ -1,5 +1,5 @@
 [project]
-name = "mini-aladdin-backend"
+name = "maas-backend"
 version = "0.1.0"
 description = "Monte Carlo Simulation Backend"
 requires-python = ">=3.9"
