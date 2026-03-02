@@ -193,45 +193,6 @@ async def calculate_metrics(request: BacktestRequest):
         }
     }
 
-@app.post("/backtest", response_model=BacktestResponse)
-async def backtest(request: BacktestRequest):
-    """
-    Runs a historical backtest validation against SPY.
-    """
-    try:
-        # Fetch Portfolio Data
-        log_returns = fetch_historical_data(request.tickers, period=request.period)
-        
-        # Fetch Benchmark Data (SPY)
-        benchmark_returns = fetch_historical_data(["SPY"], period=request.period)
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching data: {str(e)}")
-        
-    if log_returns.empty or benchmark_returns.empty:
-        raise HTTPException(status_code=400, detail="No data found")
-
-    # Run Backtest
-    results = backtest_portfolio(log_returns, request.weights, benchmark_returns)
-    
-    # Calculate final cumulative return for metrics
-    if not results["portfolio"]:
-         return BacktestResponse(dates=[], portfolio_cumulative_return=[], benchmark_cumulative_return=[], metrics={})
-
-    final_port_ret = results["portfolio"][-1]
-    final_bench_ret = results["benchmark"][-1]
-    
-    return BacktestResponse(
-        dates=results["dates"],
-        portfolio_cumulative_return=results["portfolio"],
-        benchmark_cumulative_return=results["benchmark"],
-        metrics={
-            "portfolio_total_return": final_port_ret,
-            "benchmark_total_return": final_bench_ret,
-            "outperformance": final_port_ret - final_bench_ret
-        }
-    )
-
 
 @app.post("/stress_test")
 async def stress_test(request: BacktestRequest):
@@ -485,7 +446,7 @@ async def analyze_portfolio(request: PortfolioRequest):
         return {"return": float(ret), "volatility": float(vol), "sharpe": float(sharpe)}
 
     # 4. Individual Asset Metrics
-    from .market_data import is_bond_etf, get_bond_metadata, fetch_current_prices, fetch_risk_free_rate, get_asset_class, get_asset_metadata
+    from .market_data import is_bond_etf, get_bond_metadata, fetch_current_prices, fetch_risk_free_rate, get_asset_class
     from .engine import calculate_ytm, calculate_duration_convexity
     
     individual_assets = []
@@ -496,7 +457,6 @@ async def analyze_portfolio(request: PortfolioRequest):
     for ticker in request.tickers:
         ann_ret = mean_returns[ticker] * 252
         ann_vol = daily_std[ticker] * np.sqrt(252)
-        geo_meta = get_asset_metadata(ticker)
         
         asset_info = {
             "ticker": ticker,
@@ -504,9 +464,7 @@ async def analyze_portfolio(request: PortfolioRequest):
             "volatility": float(ann_vol),
             "sharpe": float((ann_ret - risk_free_rate) / ann_vol if ann_vol > 0 else 0),
             "is_bond": False,
-            "asset_class": get_asset_class(ticker),
-            "country": geo_meta["country"],
-            "sector": geo_meta["sector"]
+            "asset_class": get_asset_class(ticker)
         }
         
         if is_bond_etf(ticker) and ticker in current_prices:
