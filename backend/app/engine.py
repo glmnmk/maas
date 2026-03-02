@@ -243,6 +243,49 @@ def analyze_risk_factors(portfolio_returns: pd.Series, ff_factors: pd.DataFrame)
     
     return results
 
+def calculate_relative_performance(portfolio_returns: pd.Series, benchmark_returns: pd.Series, risk_free_rate: float = 0.04):
+    """
+    Calculates Relative Performance metrics: Tracking Error, Information Ratio, Alpha, and Beta.
+    portfolio_returns: pd.Series of daily log returns
+    benchmark_returns: pd.Series of daily log returns
+    """
+    if portfolio_returns.empty or benchmark_returns.empty:
+        return {}
+        
+    combined = pd.concat([portfolio_returns, benchmark_returns], axis=1).dropna()
+    if combined.empty:
+        return {}
+        
+    port_ret = combined.iloc[:, 0]
+    bench_ret = combined.iloc[:, 1]
+    
+    # Active Return
+    ann_port_ret = port_ret.mean() * 252
+    ann_bench_ret = bench_ret.mean() * 252
+    active_return = ann_port_ret - ann_bench_ret
+    
+    # Tracking Error
+    active_returns_daily = port_ret - bench_ret
+    tracking_error = active_returns_daily.std() * np.sqrt(252)
+    
+    # Information Ratio
+    info_ratio = active_return / tracking_error if tracking_error > 0 else 0
+    
+    # Beta
+    cov_matrix = np.cov(port_ret, bench_ret)
+    beta = cov_matrix[0, 1] / cov_matrix[1, 1] if cov_matrix[1, 1] > 0 else 1.0
+    
+    # Alpha (Jensen's Alpha)
+    alpha = (ann_port_ret - risk_free_rate) - beta * (ann_bench_ret - risk_free_rate)
+    
+    return {
+        "active_return": float(active_return),
+        "tracking_error": float(tracking_error),
+        "information_ratio": float(info_ratio),
+        "beta": float(beta),
+        "alpha": float(alpha)
+    }
+
 def black_litterman_optimization(mean_returns, cov_matrix, views_P, views_Q, market_weights, tau=0.05):
     """
     Performs Black-Litterman Optimization.

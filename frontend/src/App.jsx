@@ -16,6 +16,7 @@ import PerformanceAttribution from './components/PerformanceAttribution'
 import ChatInterface from './components/ChatInterface'
 import AdvancedRiskMetrics from './components/AdvancedRiskMetrics'
 import WealthProjection from './components/WealthProjection'
+import ExposureAnalytics from './components/ExposureAnalytics'
 import { useAuth } from './context/AuthContext'
 import Login from './components/Login'
 
@@ -317,6 +318,7 @@ export default function App() {
                     {[
                       { id: 'overview', label: 'Overview' },
                       { id: 'wealth', label: 'Wealth Projection' },
+                      { id: 'exposure', label: 'Exposure & Benchmarking' },
                       { id: 'risk', label: 'Risk & Stress Tests' },
                       { id: 'factors', label: 'Factor Analysis & Attribution' },
                       { id: 'correlation', label: 'Correlation' },
@@ -412,6 +414,17 @@ export default function App() {
                         <WealthProjection
                           tickers={tickers}
                           weights={manualWeights}
+                        />
+                      </div>
+                    )}
+
+                    {activeTab === 'exposure' && (
+                      <div id="exposure-benchmarking" className="animate-in fade-in duration-500 mt-6">
+                        <ExposureAnalytics
+                          tickers={tickers}
+                          weights={manualWeights}
+                          metrics={manualMetrics?.benchmark_metrics}
+                          assetsData={data?.individual_assets}
                         />
                       </div>
                     )}

@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 from .market_data import fetch_historical_data, fetch_fama_french_data
-from .engine import run_monte_carlo, optimize_portfolio, backtest_portfolio, stress_test_portfolio, calculate_correlation, analyze_risk_factors, calculate_attribution, black_litterman_optimization, calculate_historical_var_cvar, calculate_mctr, project_wealth
+from .engine import run_monte_carlo, optimize_portfolio, backtest_portfolio, stress_test_portfolio, calculate_correlation, analyze_risk_factors, calculate_attribution, black_litterman_optimization, calculate_historical_var_cvar, calculate_mctr, project_wealth, calculate_relative_performance
 from .models import PortfolioRequest, PortfolioResponse, BacktestRequest, BacktestResponse, CorrelationResponse, FactorAnalysisResponse, AttributionResponse, BLViewsRequest, BLOptimizationRequest, BLOptimizationResponse, UserCreate, UserLogin, TokenResponse, ProjectionRequest
 from .ai_analyst import get_ai_analysis, get_mock_analysis, AIAnalysisRequest, generate_bl_views
 from .storage import save_portfolio, list_portfolios, delete_portfolio, PortfolioModel, register_user, verify_user
@@ -170,6 +170,14 @@ async def calculate_metrics(request: BacktestRequest):
         var_metrics = None
         mctr_metrics = None
     
+    # 6. Benchmark Metrics
+    try:
+        benchmark_returns = fetch_historical_data(["SPY"], period=request.period)
+        portfolio_returns = log_returns.dot(weights_array)
+        benchmark_metrics = calculate_relative_performance(portfolio_returns, benchmark_returns, risk_free_rate)
+    except:
+        benchmark_metrics = None
+        
     return {
         "metrics": basic_metrics,
         "factor_analysis": factor_res,
@@ -178,6 +186,7 @@ async def calculate_metrics(request: BacktestRequest):
         "stress_test": stress_res,
         "var_metrics": var_metrics,
         "mctr_metrics": mctr_metrics,
+        "benchmark_metrics": benchmark_metrics,
         "metadata": {
             "period": request.period,
             "risk_free_rate": risk_free_rate
@@ -476,7 +485,7 @@ async def analyze_portfolio(request: PortfolioRequest):
         return {"return": float(ret), "volatility": float(vol), "sharpe": float(sharpe)}
 
     # 4. Individual Asset Metrics
-    from .market_data import is_bond_etf, get_bond_metadata, fetch_current_prices, fetch_risk_free_rate, get_asset_class
+    from .market_data import is_bond_etf, get_bond_metadata, fetch_current_prices, fetch_risk_free_rate, get_asset_class, get_asset_metadata
     from .engine import calculate_ytm, calculate_duration_convexity
     
     individual_assets = []
@@ -487,6 +496,7 @@ async def analyze_portfolio(request: PortfolioRequest):
     for ticker in request.tickers:
         ann_ret = mean_returns[ticker] * 252
         ann_vol = daily_std[ticker] * np.sqrt(252)
+        geo_meta = get_asset_metadata(ticker)
         
         asset_info = {
             "ticker": ticker,
@@ -494,7 +504,9 @@ async def analyze_portfolio(request: PortfolioRequest):
             "volatility": float(ann_vol),
             "sharpe": float((ann_ret - risk_free_rate) / ann_vol if ann_vol > 0 else 0),
             "is_bond": False,
-            "asset_class": get_asset_class(ticker)
+            "asset_class": get_asset_class(ticker),
+            "country": geo_meta["country"],
+            "sector": geo_meta["sector"]
         }
         
         if is_bond_etf(ticker) and ticker in current_prices:

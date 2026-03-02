@@ -172,6 +172,50 @@ def get_asset_class(ticker: str) -> str:
         ASSET_CLASS_CACHE[ticker] = "Equity" # Cache fallback to avoid hammering failing API
         return "Equity"
 
+ASSET_METADATA_CACHE = {}
+
+def get_asset_metadata(ticker: str) -> dict:
+    ticker = ticker.upper()
+    if ticker in ASSET_METADATA_CACHE:
+        return ASSET_METADATA_CACHE[ticker]
+    
+    metadata = {"country": "Unknown", "sector": "Unknown"}
+    
+    try:
+        info = yf.Ticker(ticker).info
+        
+        # Determine Country/Region
+        country = info.get("country", "")
+        if not country:
+            category = info.get("category", "")
+            if "Europe" in category: country = "Europe"
+            elif "Asia" in category or "Emerging" in category or "China" in category: country = "Asia/EM"
+            elif "Global" in category or "World" in category: country = "Global"
+            elif "US" in category or "U.S." in category: country = "United States"
+            else: country = "United States" # Default assumption for US-listed tickers
+            
+        # Determine Sector/Industry
+        sector = info.get("sector", "")
+        if not sector:
+            category = info.get("category", "")
+            if category:
+                sector = category
+            else:
+                # Fallback to asset class
+                asset_class = get_asset_class(ticker)
+                if asset_class == "Fixed Income": sector = "Bonds"
+                elif asset_class == "Commodity": sector = "Commodities"
+                elif asset_class == "Real Estate": sector = "Real Estate"
+                else: sector = "Other Equity"
+                
+        metadata["country"] = country
+        metadata["sector"] = sector
+        ASSET_METADATA_CACHE[ticker] = metadata
+        return metadata
+    except Exception as e:
+        print(f"Error fetching metadata for {ticker}: {e}")
+        ASSET_METADATA_CACHE[ticker] = metadata
+        return metadata
 def get_bond_metadata(ticker: str) -> dict:
     return BOND_ETFS.get(ticker.upper(), {})
 
