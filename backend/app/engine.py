@@ -92,18 +92,18 @@ def backtest_portfolio(log_returns, weights, benchmark_log_returns):
     benchmark_log_ret = benchmark_log_returns.loc[common_index]
     
     # 2. Calculate Portfolio Daily Returns (weighted sum of asset returns)
-    # Convert log returns back to simple returns for portfolio aggregation approximation
-    # or just use weighted average of log returns (simpler but slightly less accurate for large moves)
-    # Let's use weighted log returns for consistency with the engine
-    
     # Weights array aligned with columns
     weights_array = np.array([weights[ticker] for ticker in log_returns.columns])
     
-    port_daily_log_ret = np.dot(portfolio_log_ret, weights_array)
+    # 2. Convert log returns to simple returns for exact linear portfolio aggregation
+    simple_returns = np.exp(portfolio_log_ret) - 1
+    benchmark_simple = np.exp(benchmark_log_ret) - 1
     
-    # 3. Cumulative Returns
-    port_cum_ret = np.exp(np.cumsum(port_daily_log_ret)) - 1
-    bench_cum_ret = np.exp(np.cumsum(benchmark_log_ret)) - 1
+    port_daily_simple_ret = np.dot(simple_returns, weights_array)
+    
+    # 3. Cumulative Returns via compounding
+    port_cum_ret = np.cumprod(1 + port_daily_simple_ret) - 1
+    bench_cum_ret = np.cumprod(1 + benchmark_simple) - 1
     
     return {
         "dates": common_index.strftime('%Y-%m-%d').tolist(),
@@ -142,9 +142,13 @@ def stress_test_portfolio(log_returns, weights, benchmark_log_returns, force_bet
     port_log_ret = log_returns.loc[common_index]
     bench_log_ret = benchmark_log_returns.loc[common_index] # Series
     
-    # 2. Calculate Portfolio Daily Returns
+    # 2. Convert to simple returns for exact exact combinations
+    port_simple_ret = np.exp(port_log_ret) - 1
+    bench_simple_series = np.exp(bench_log_ret) - 1
+    
+    # Calculate Portfolio Daily Returns
     weights_array = np.array([weights.get(t, 0) for t in log_returns.columns])
-    port_daily_ret = np.dot(port_log_ret, weights_array) # (N,)
+    port_daily_ret = np.dot(port_simple_ret, weights_array) # (N,)
     
     # 3. Calculate Beta
     if force_beta is not None:
@@ -152,10 +156,10 @@ def stress_test_portfolio(log_returns, weights, benchmark_log_returns, force_bet
     else:
         # Beta = Cov(Port, Bench) / Var(Bench)
         # Ensure 1D arrays for np.cov
-        if isinstance(bench_log_ret, pd.DataFrame):
-            bench_series = bench_log_ret.iloc[:, 0]
+        if isinstance(bench_simple_series, pd.DataFrame):
+            bench_series = bench_simple_series.iloc[:, 0]
         else:
-            bench_series = bench_log_ret
+            bench_series = bench_simple_series
             
         covariance_matrix = np.cov(port_daily_ret, bench_series)
         # covariance_matrix is [[Var(Port), Cov(P,B)], [Cov(P,B), Var(Bench)]]
@@ -486,7 +490,9 @@ def calculate_historical_var_cvar(log_returns: pd.DataFrame, portfolio_weights: 
     if np.sum(weights_array) == 0:
          return {"var_1d": 0.0, "cvar_1d": 0.0}
          
-    port_daily_rets = np.dot(log_returns, weights_array)
+    # Convert to simple returns for exact value combinations
+    simple_returns = np.exp(log_returns) - 1
+    port_daily_rets = np.dot(simple_returns, weights_array)
     
     # 2. Sort returns from worst to best
     sorted_rets = np.sort(port_daily_rets)
