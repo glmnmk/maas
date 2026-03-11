@@ -20,7 +20,17 @@ def get_wrds_connection():
             uname = os.environ.get("WRDS_USERNAME")
             pwd = os.environ.get("WRDS_PASSWORD")
             if uname and pwd:
-                WRDS_DB = wrds.Connection(wrds_username=uname, wrds_password=pwd)
+                # In a headless server, WRDS tries to ask "Create .pgpass file? [y/n]"
+                # which throws an EOFError since there is no terminal.
+                # We temporarily mock the input function to automatically answer 'n'.
+                import builtins
+                original_input = getattr(builtins, 'input', None)
+                builtins.input = lambda prompt='': 'n'
+                try:
+                    WRDS_DB = wrds.Connection(wrds_username=uname, wrds_password=pwd)
+                finally:
+                    if original_input:
+                        builtins.input = original_input
         except Exception as e:
             print(f"WRDS Connection error: {e}")
     return WRDS_DB
