@@ -51,10 +51,18 @@ def fetch_historical_data(tickers: list[str], period: str = "5y") -> pd.DataFram
             days = days_map.get(period, 1825)
             start_date = (datetime.datetime.now() - datetime.timedelta(days=days)).strftime('%Y-%m-%d')
             
-            if len(tickers) == 1:
-                tickers_sql = f"('{tickers[0]}')"
+            # Alias map for Wharton SQL specifically
+            price_aliases = {"GOOG": "GOOGL", "BRK-B": "BRK.B"}
+            reverse_aliases = {"GOOGL": "GOOG", "BRK.B": "BRK-B"}
+            
+            mapped_tickers = []
+            for t in tickers:
+                mapped_tickers.append(price_aliases.get(t, t))
+
+            if len(mapped_tickers) == 1:
+                tickers_sql = f"('{mapped_tickers[0]}')"
             else:
-                tickers_sql = tuple(tickers)
+                tickers_sql = tuple(mapped_tickers)
                 
             sql = f"""
             SELECT datadate as date, tic, prccd / ajexdi as adj_close
@@ -66,6 +74,10 @@ def fetch_historical_data(tickers: list[str], period: str = "5y") -> pd.DataFram
             if df is not None and not df.empty:
                 df['date'] = pd.to_datetime(df['date'])
                 prices = df.pivot(index='date', columns='tic', values='adj_close')
+                
+                # Remap the columns back to the user's requested tickers
+                prices = prices.rename(columns=reverse_aliases)
+                
                 prices = prices.dropna()
                 log_returns = np.log(prices / prices.shift(1)).dropna()
                 
@@ -239,6 +251,17 @@ ASSET_METADATA_CACHE = {}
 
 def get_asset_metadata(ticker: str) -> dict:
     ticker = ticker.upper()
+    
+    # WRDS comp.company table tracks GOOG mostly under GOOGL (Class A)
+    # Ticker aliases used strictly for metadata lookup:
+    lookup_ticker = ticker
+    meta_aliases = {
+        "GOOG": "GOOGL",
+        "BRK-B": "BRK.B",
+    }
+    if ticker in meta_aliases:
+        lookup_ticker = meta_aliases[ticker]
+        
     if ticker in ASSET_METADATA_CACHE:
         return ASSET_METADATA_CACHE[ticker]
     
@@ -251,7 +274,7 @@ def get_asset_metadata(ticker: str) -> dict:
             SELECT DISTINCT b.loc as country, b.gsector as sector
             FROM comp_na_daily_all.names a
             JOIN comp.company b ON a.gvkey = b.gvkey
-            WHERE a.tic = '{ticker}'
+            WHERE a.tic = '{lookup_ticker}'
             """
             df = db.raw_sql(meta_sql)
             if df is not None and not df.empty:
