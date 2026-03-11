@@ -8,6 +8,9 @@ import io
 import ssl
 import os
 import wrds
+from dotenv import load_dotenv
+
+load_dotenv()
 
 WRDS_DB = None
 def get_wrds_connection():
@@ -246,7 +249,7 @@ def get_asset_metadata(ticker: str) -> dict:
                 
                 # Map ISO Country code
                 if pd.notna(raw_country) and raw_country == 'USA':
-                    metadata["country"] = "United States"
+                    metadata["country"] = "United States of America"
                 elif pd.notna(raw_country):
                     metadata["country"] = str(raw_country)
                 
