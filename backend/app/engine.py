@@ -105,10 +105,25 @@ def backtest_portfolio(log_returns, weights, benchmark_log_returns):
     port_cum_ret = np.cumprod(1 + port_daily_simple_ret) - 1
     bench_cum_ret = np.cumprod(1 + benchmark_simple) - 1
     
+    # Ensure 1D list output regardless of Series/DataFrame/Numpy
+    if isinstance(port_cum_ret, pd.DataFrame):
+         port_cum_ret_list = port_cum_ret.iloc[:, 0].tolist()
+    elif isinstance(port_cum_ret, pd.Series):
+         port_cum_ret_list = port_cum_ret.tolist()
+    else:
+         port_cum_ret_list = port_cum_ret.tolist()
+         
+    if isinstance(bench_cum_ret, pd.DataFrame):
+         bench_cum_ret_list = bench_cum_ret.iloc[:, 0].tolist()
+    elif isinstance(bench_cum_ret, pd.Series):
+         bench_cum_ret_list = bench_cum_ret.tolist()
+    else:
+         bench_cum_ret_list = bench_cum_ret.tolist()
+    
     return {
         "dates": common_index.strftime('%Y-%m-%d').tolist(),
-        "portfolio": port_cum_ret.tolist(),
-        "benchmark": bench_cum_ret.tolist()
+        "portfolio": port_cum_ret_list,
+        "benchmark": bench_cum_ret_list
     }
 
 # Scenarios defined as percentage drops/gains for asset classes (simplified for now as flat drops)
