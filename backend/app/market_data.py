@@ -406,20 +406,38 @@ def get_asset_metadata(ticker: str) -> dict:
 
     # Fallback to yfinance
     try:
-        info = yf.Ticker(ticker).info
+        yf_ticker = yf.Ticker(ticker)
+        
+        # Try fetching fast_info first as it is more reliable for basic metadata (though lacks sector)
+        # However, for sector/country we need .info
+        info = yf_ticker.info
+        
         if not info:
-             # If info is None or empty dict, stop here
+             print(f"Warning: yfinance returned empty info for {ticker}")
              return metadata
         
         # Determine Country/Region
         country = info.get("country", "")
         if not country:
-            category = info.get("category", "")
-            if "Europe" in category: country = "Europe"
-            elif "Asia" in category or "Emerging" in category or "China" in category: country = "Asia/EM"
-            elif "Global" in category or "World" in category: country = "Global"
-            elif "US" in category or "U.S." in category: country = "United States of America"
-            else: country = "United States of America" # Default assumption for US-listed tickers
+            # Try to guess from exchange if country is missing
+            exchange = info.get("exchange", "")
+            if "GER" in exchange or ".DE" in ticker:
+                country = "Germany"
+            elif "LSE" in exchange or ".L" in ticker:
+                country = "United Kingdom"
+            elif "HKG" in exchange or ".HK" in ticker:
+                country = "Hong Kong"
+            elif "JP" in exchange or ".T" in ticker:
+                country = "Japan"
+            elif "PA" in exchange or ".PA" in ticker:
+                country = "France"
+            else:
+                category = info.get("category", "")
+                if "Europe" in category: country = "Europe"
+                elif "Asia" in category or "Emerging" in category or "China" in category: country = "Asia/EM"
+                elif "Global" in category or "World" in category: country = "Global"
+                elif "US" in category or "U.S." in category: country = "United States of America"
+                else: country = "United States of America" # Default assumption for US-listed tickers
         
         # Apply standard mapping on yfinance output as well
         metadata["country"] = COUNTRY_MAP.get(country, country)
@@ -427,29 +445,42 @@ def get_asset_metadata(ticker: str) -> dict:
         # Determine Sector/Industry
         sector = info.get("sector", "")
         if not sector:
-            category = info.get("category", "")
-            if category:
-                sector = category
-            else:
-                # Fallback to asset class
-                asset_class = get_asset_class(ticker)
-                if asset_class == "Fixed Income": sector = "Bonds"
-                elif asset_class == "Commodity": sector = "Commodities"
-                elif asset_class == "Real Estate": sector = "Real Estate"
-                else: sector = "Other Equity"
+            # Try fallback to 'industry'
+            industry = info.get("industry", "")
+            if industry:
+                # Map industry to sector if possible (very rough)
+                if "Bank" in industry or "Insurance" in industry: sector = "Financials"
+                elif "Auto" in industry: sector = "Consumer Discretionary"
+                elif "Software" in industry: sector = "Technology"
+                elif "Oil" in industry: sector = "Energy"
+                elif "Real Estate" in industry: sector = "Real Estate"
+                
+            if not sector:
+                category = info.get("category", "")
+                if category:
+                    sector = category
+                else:
+                    # Fallback to asset class
+                    asset_class = get_asset_class(ticker)
+                    if asset_class == "Fixed Income": sector = "Bonds"
+                    elif asset_class == "Commodity": sector = "Commodities"
+                    elif asset_class == "Real Estate": sector = "Real Estate"
+                    else: sector = "Other Equity"
         
         # Normalize Sector
         metadata["sector"] = SECTOR_MAP.get(sector, sector)
                 
         # Apply standard mapping on yfinance output as well (again, in case it was set by category block)
         metadata["country"] = COUNTRY_MAP.get(metadata["country"], metadata["country"]) 
-        # Only cache if we actually got real data
-        if metadata["country"] != "Unknown" or sector != "Unknown":
+        
+        # Cache if valid
+        if metadata["country"] != "Unknown" or metadata["sector"] != "Unknown":
             ASSET_METADATA_CACHE[ticker] = metadata
+            
         return metadata
     except Exception as e:
         print(f"Error fetching metadata for {ticker}: {e}")
-        # Do not cache "Unknown" on failure so it can retry on the next analysis
+        # Return partial metadata if we have it
         return metadata
 def get_bond_metadata(ticker: str) -> dict:
     return BOND_ETFS.get(ticker.upper(), {})
