@@ -24,7 +24,6 @@ def run_monte_carlo(mean_returns, cov_matrix, num_simulations, risk_free_rate):
     
     # 4. Calculate Portfolio Volatility
     # Variance = w.T @ Cov @ w
-    # We need diagonal of (weights @ cov @ weights.T) but that's expensive (NxN)
     # Instead: sum( (weights @ cov) * weights, axis=1 )
     # weights @ cov -> (N, M)
     # (weights @ cov) * weights -> (N, M) element-wise
