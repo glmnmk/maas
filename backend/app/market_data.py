@@ -140,6 +140,14 @@ def fetch_historical_data(tickers: list[str], period: str = "5y") -> pd.DataFram
     # Calculate daily log returns
     log_returns = np.log(prices / prices.shift(1)).dropna()
     
+    # Ensure DataFrame for single ticker
+    if isinstance(log_returns, pd.Series):
+        if len(tickers) == 1:
+            log_returns = log_returns.to_frame(tickers[0])
+        else:
+             # Should not happen if multiple tickers requested but good fallback
+             log_returns = log_returns.to_frame()
+
     # Do NOT reindex to match 'tickers' exactly if it introduces NaN columns.
     # We want to keep only valid data for analysis.
     # if isinstance(log_returns, pd.DataFrame):
@@ -399,6 +407,9 @@ def get_asset_metadata(ticker: str) -> dict:
     # Fallback to yfinance
     try:
         info = yf.Ticker(ticker).info
+        if not info:
+             # If info is None or empty dict, stop here
+             return metadata
         
         # Determine Country/Region
         country = info.get("country", "")
