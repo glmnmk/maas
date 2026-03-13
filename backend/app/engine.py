@@ -615,7 +615,15 @@ def project_wealth(log_returns: pd.DataFrame, portfolio_weights: dict, initial_i
     Z = np.random.normal(0, 1, size=(num_paths, months))
     
     # 4. Calculate monthly log returns for all paths
-    drift = (mu_ann - 0.5 * sigma_ann**2) * dt
+    # Since mu_ann is derived from historical log returns, it already represents the 
+    # expected geometric growth rate (mu - 0.5*sigma^2).
+    # We should NOT subtract sigma^2/2 again.
+    
+    # We assume future returns follow the same distribution as historical log returns.
+    # r_log ~ N(mean_log_ret, var_log_ret)
+    
+    # Drift for the simulation (mean of the normal distribution for each step)
+    drift = mu_ann * dt
     volatility = sigma_ann * np.sqrt(dt)
     
     log_returns_sim = drift + volatility * Z
